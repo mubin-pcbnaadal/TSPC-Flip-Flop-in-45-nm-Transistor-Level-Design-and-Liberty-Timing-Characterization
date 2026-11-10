@@ -1,0 +1,8 @@
+# simulator outputs
+xcelium.d/
+psf/
+*.log
+*.history
+*.key
+*.cdslck
+__pycache__/

@@ -1,0 +1,90 @@
+// In order to check signal definitions
+`default_nettype none
+// NOTE : `define VAMS_ELEC_DIS_ONLY + `include "disciplines.vams" are done ONCE,
+// at the top of board.vams (first analog file compiled). Otherwise the port
+// name Q collides with the Verilog-AMS charge access function Q().
+
+////////////////////////////////////////////////////////////////
+// INV : parametrized invertor
+//   WN : NMOS width (default 145nm)
+//   WP : PMOS width (default 214nm)
+////////////////////////////////////////////////////////////////
+module INV ( VDD , VSS , A , Y );
+  inout       VDD ,  VSS ,  A , Y ;
+  electrical VDD ;
+  electrical VSS ;
+  electrical A ;
+  electrical Y ;
+  // Transistor widths, may be overridden at instantiation
+  parameter real WN = 145e-9 ;
+  parameter real WP = 214e-9 ;
+  g45n1svt #( .l(4.5e-08), .w(WN))  mn0 ( .d(Y) , .g(A) , .s(VSS), .b(VSS));
+  g45p1svt #( .l(4.5e-08), .w(WP))  mp0 ( .d(Y) , .g(A) , .s(VDD), .b(VDD));
+endmodule
+
+////////////////////////////////////////////////////////////////
+// TSPCFF : True Single Phase Clock D flip-flop (rising edge on CK)
+//
+//   INV_CK : CK -> CKb
+//   Stage 1 : MP1, MN4, MN1   (D  -> x , internal node a)
+//   Stage 2 : MP2, MP4, MN2   (x  -> y , internal node b)
+//   Stage 3 : MP3, MP5, MN3   (y  -> Qb, internal node c)
+//   INV_Q  : Qb -> Q
+//
+// Core transistors : NMOS g45n1svt w=145nm, PMOS g45p1svt w=214nm
+// Inverters sized like DFFQX1 (gsclib045):
+//   CK input inverter  : WN=145nm, WP=215nm
+//   Q output inverter  : WN=260nm, WP=390nm
+////////////////////////////////////////////////////////////////
+module TSPCFF ( CK , D , Q , VDD , VSS );
+  inout       CK , D , Q , VDD , VSS ;
+  electrical CK ;
+  electrical D ;
+  electrical Q ;
+  electrical VDD ;
+  electrical VSS ;
+
+  // Internal nodes
+  electrical CKb ;
+  electrical x ;
+  electrical a ;
+  electrical b ;
+  electrical y ;
+  electrical c ;
+  electrical Qb ;
+
+  // Core transistor sizes
+  localparam real WN_CORE = 145e-9 ;
+  localparam real WP_CORE = 214e-9 ;
+
+  // Clock input inverter : CK -> CKb
+  INV #(.WN(145e-9), .WP(215e-9)) INV_CK (.A(CK), .Y(CKb), .VDD(VDD), .VSS(VSS));
+
+  // ---------------- Stage 1 : D -> x ----------------
+  // MP1 : VDD -> x , gate D
+  g45p1svt #( .l(4.5e-08), .w(WP_CORE)) MP1 ( .d(x) , .g(D)   , .s(VDD) , .b(VDD));
+  // MN4 : x -> a , gate CKb
+  g45n1svt #( .l(4.5e-08), .w(WN_CORE)) MN4 ( .d(x) , .g(CKb) , .s(a)   , .b(VSS));
+  // MN1 : a -> VSS , gate D
+  g45n1svt #( .l(4.5e-08), .w(WN_CORE)) MN1 ( .d(a) , .g(D)   , .s(VSS) , .b(VSS));
+
+  // ---------------- Stage 2 : x -> y ----------------
+  // MP2 : VDD -> b , gate CKb
+  g45p1svt #( .l(4.5e-08), .w(WP_CORE)) MP2 ( .d(b) , .g(CKb) , .s(VDD) , .b(VDD));
+  // MP4 : b -> y , gate x
+  g45p1svt #( .l(4.5e-08), .w(WP_CORE)) MP4 ( .d(y) , .g(x)   , .s(b)   , .b(VDD));
+  // MN2 : y -> VSS , gate CKb
+  g45n1svt #( .l(4.5e-08), .w(WN_CORE)) MN2 ( .d(y) , .g(CKb) , .s(VSS) , .b(VSS));
+
+  // ---------------- Stage 3 : y -> Qb ----------------
+  // MP3 : VDD -> c , gate y
+  g45p1svt #( .l(4.5e-08), .w(WP_CORE)) MP3 ( .d(c)  , .g(y)   , .s(VDD) , .b(VDD));
+  // MP5 : c -> Qb , gate CKb
+  g45p1svt #( .l(4.5e-08), .w(WP_CORE)) MP5 ( .d(Qb) , .g(CKb) , .s(c)   , .b(VDD));
+  // MN3 : Qb -> VSS , gate y
+  g45n1svt #( .l(4.5e-08), .w(WN_CORE)) MN3 ( .d(Qb) , .g(y)   , .s(VSS) , .b(VSS));
+
+  // Output inverter : Qb -> Q
+  INV #(.WN(260e-9), .WP(390e-9)) INV_Q (.A(Qb), .Y(Q), .VDD(VDD), .VSS(VSS));
+
+endmodule

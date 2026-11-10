@@ -1,0 +1,14 @@
+// In order to check signal definitions
+`default_nettype none
+// In order to avoid confusion between Q ports and charges...
+`define VAMS_ELEC_DIS_ONLY
+`include "disciplines.vams"
+module INV ( VDD , VSS , A , Y );
+  inout       VDD ,  VSS ,  A , Y ;
+  electrical VDD ;
+  electrical VSS ;
+  electrical A ;
+  electrical Y ;
+  g45n1svt #( .l(4.5e-08), .w(2.6e-07))  mn0 ( .d(Y) , .g(A) , .s(VSS), .b(VSS));
+  g45p1svt #( .l(4.5e-08), .w(3.9e-07))  mp0 ( .d(Y) , .g(A) , .s(VDD) , .b(VDD));
+endmodule
